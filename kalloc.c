@@ -248,8 +248,8 @@ struct page* select_victim(void) {
         curr->next->prev = curr->prev;
         // to tail
         page_lru_head->prev->next = curr;
-        page_lru_head->prev = curr;
         curr->prev = page_lru_head->prev;
+        page_lru_head->prev = curr;
         curr->next = page_lru_head;
       }
     } else {
