@@ -154,7 +154,7 @@ void add_page_to_lru_list(struct page* page) {
 
   page_lru_head = page;
   num_lru_pages++;
-  cprintf("num_lru_pages++: %d", num_lru_pages);
+  cprintf("num_lru_pages++: %d\n", num_lru_pages);
 }
 
 // lru lock must be acquired before
@@ -180,7 +180,7 @@ void del_page_from_lru(struct page* page) {
   page->prev = NULL;
 
   num_lru_pages--;
-  cprintf("num_lru_pages--: %d", num_lru_pages);
+  cprintf("num_lru_pages--: %d\n", num_lru_pages);
 }
 
 

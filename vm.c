@@ -369,7 +369,7 @@ copyuvm(pde_t *pgdir, uint sz)
     if(!(*pte & PTE_P)) {
       // swapped out pages should also be copied
       if((mem = kalloc()) == 0) {
-        cprintf("copyuvm: out of memory");
+        cprintf("copyuvm: out of memory\n");
         goto bad;
       }
       swapread(mem, (PTE_ADDR(*pte) >> 12));
@@ -379,13 +379,13 @@ copyuvm(pde_t *pgdir, uint sz)
       pa = PTE_ADDR(*pte);
       flags = PTE_FLAGS(*pte);
       if ((mem = kalloc()) == 0) {
-        cprintf("copyuvm: out of memory");
+        cprintf("copyuvm: out of memory\n");
         goto bad;
       }
       memmove(mem, (char*)P2V(pa), PGSIZE);
     }
     if(mappages(d, (void*)i, PGSIZE, V2P(mem), flags) < 0) {
-      cprintf("copyuvm: out of memory");
+      cprintf("copyuvm: out of memory\n");
       kfree(mem);
       goto bad;
     }
@@ -485,7 +485,7 @@ void sbfree(int bi) {
 // // So, manage swappable pages with LRU list when init/alloc/dealloc/copy user virtual memories
 // // this means all pages in swap space are swappable.
 int swap_out() {
-  cprintf("swap_out");
+  cprintf("swap_out\n");
   pte_t* pte;
   uint pa;
   uint off;
@@ -521,7 +521,7 @@ int swap_out() {
 
 // Swap-in: move the victim page from backing stroe to main memory
 void swap_in(pde_t* pgdir, uint fault_addr) {
-  cprintf("swap_in");
+  cprintf("swap_in\n");
   pte_t* pte;
   int off;
 
