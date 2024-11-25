@@ -48,5 +48,6 @@ int main () {
     } else {
         wait();
     }
+    exit();
 
 }
