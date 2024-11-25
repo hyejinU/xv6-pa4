@@ -7,8 +7,18 @@
 #include "proc.h"
 #include "elf.h"
 
+// [PA4]
+#include "spinlock.h"
+struct spinlock sb_lock;
+
+char* sbmap;
+int cnt_pgtab;
+//
+
 extern char data[];  // defined by kernel.ld
 pde_t *kpgdir;  // for use in scheduler()
+
+
 
 // Set up CPU's kernel segment descriptors.
 // Run once on entry on each CPU.
@@ -16,6 +26,10 @@ void
 seginit(void)
 {
   struct cpu *c;
+
+// [PA4]
+  cnt_pgtab = 0;
+//
 
   // Map "logical" addresses to virtual addresses using identity map.
   // Cannot share a CODE descriptor for both kernel and user
@@ -27,6 +41,9 @@ seginit(void)
   c->gdt[SEG_UCODE] = SEG(STA_X|STA_R, 0, 0xffffffff, DPL_USER);
   c->gdt[SEG_UDATA] = SEG(STA_W, 0, 0xffffffff, DPL_USER);
   lgdt(c->gdt, sizeof(c->gdt));
+  
+// [PA4]
+  initlock(&sb_lock, "sb");
 }
 
 // Return the address of the PTE in page table pgdir
@@ -42,8 +59,12 @@ walkpgdir(pde_t *pgdir, const void *va, int alloc)
   if(*pde & PTE_P){
     pgtab = (pte_t*)P2V(PTE_ADDR(*pde));
   } else {
-    if(!alloc || (pgtab = (pte_t*)kalloc()) == 0)
+// [PA4]
+    if(!alloc || (pgtab = (pte_t*)kalloc()) == 0) {
       return 0;
+    }
+    cnt_pgtab++;
+//
     // Make sure all those PTE_P bits are zero.
     memset(pgtab, 0, PGSIZE);
     // The permissions here are overly generous, but they can
@@ -141,6 +162,10 @@ void
 kvmalloc(void)
 {
   kpgdir = setupkvm();
+// [PA4]
+  sbmap = kalloc();
+  memset(sbmap, 0, PGSIZE);
+//
   switchkvm();
 }
 
@@ -189,6 +214,7 @@ inituvm(pde_t *pgdir, char *init, uint sz)
   mem = kalloc();
   memset(mem, 0, PGSIZE);
   mappages(pgdir, 0, PGSIZE, V2P(mem), PTE_W|PTE_U);
+  kalloc_to_lru_list(pgdir, mem, (char*)0);
   memmove(mem, init, sz);
 }
 
@@ -233,17 +259,22 @@ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
   for(; a < newsz; a += PGSIZE){
     mem = kalloc();
     if(mem == 0){
-      cprintf("allocuvm out of memory\n");
+// [PA4]
+      cprintf("allocuvm: out of memory (1)\n");
       deallocuvm(pgdir, newsz, oldsz);
       return 0;
+//
     }
     memset(mem, 0, PGSIZE);
     if(mappages(pgdir, (char*)a, PGSIZE, V2P(mem), PTE_W|PTE_U) < 0){
-      cprintf("allocuvm out of memory (2)\n");
+// [PA4]
+      cprintf("allocuvm: out of memory (2)\n");
       deallocuvm(pgdir, newsz, oldsz);
       kfree(mem);
       return 0;
     }
+    kalloc_to_lru_list(pgdir, mem, (char*)a);
+//
   }
   return newsz;
 }
@@ -264,16 +295,24 @@ deallocuvm(pde_t *pgdir, uint oldsz, uint newsz)
   a = PGROUNDUP(newsz);
   for(; a  < oldsz; a += PGSIZE){
     pte = walkpgdir(pgdir, (char*)a, 0);
-    if(!pte)
+    if(!pte) {
       a = PGADDR(PDX(a) + 1, 0, 0) - PGSIZE;
-    else if((*pte & PTE_P) != 0){
+    } else if((*pte & PTE_P) != 0){
       pa = PTE_ADDR(*pte);
       if(pa == 0)
         panic("kfree");
       char *v = P2V(pa);
       kfree(v);
+      // Present pages should be freed, set PTE bits to 0 and remove them from LRU list
+      kfree_from_lru_list(v); // [PA4]
+      *pte = 0;
+// [PA4]
+    } else if(*pte != 0) {
+      // Swapped out pages should be cleared in bitmap and set PTE bits to 0
+      sbfree((PTE_ADDR(*pte) >> 12));
       *pte = 0;
     }
+//
   }
   return newsz;
 }
@@ -325,17 +364,33 @@ copyuvm(pde_t *pgdir, uint sz)
   for(i = 0; i < sz; i += PGSIZE){
     if((pte = walkpgdir(pgdir, (void *) i, 0)) == 0)
       panic("copyuvm: pte should exist");
-    if(!(*pte & PTE_P))
-      panic("copyuvm: page not present");
-    pa = PTE_ADDR(*pte);
-    flags = PTE_FLAGS(*pte);
-    if((mem = kalloc()) == 0)
-      goto bad;
-    memmove(mem, (char*)P2V(pa), PGSIZE);
+
+// [PA4]
+    if(!(*pte & PTE_P)) {
+      // swapped out pages should also be copied
+      if((mem = kalloc()) == 0) {
+        cprintf("copyuvm: out of memory");
+        goto bad;
+      }
+      swapread(mem, (PTE_ADDR(*pte) >> 12));
+      flags = PTE_FLAGS(*pte) | PTE_P;
+    } else {
+      // present pages should be copied
+      pa = PTE_ADDR(*pte);
+      flags = PTE_FLAGS(*pte);
+      if ((mem = kalloc()) == 0) {
+        cprintf("copyuvm: out of memory");
+        goto bad;
+      }
+      memmove(mem, (char*)P2V(pa), PGSIZE);
+    }
     if(mappages(d, (void*)i, PGSIZE, V2P(mem), flags) < 0) {
+      cprintf("copyuvm: out of memory");
       kfree(mem);
       goto bad;
     }
+    kalloc_to_lru_list(d, mem, (void*)i);
+//
   }
   return d;
 
@@ -392,3 +447,113 @@ copyout(pde_t *pgdir, uint va, void *p, uint len)
 //PAGEBREAK!
 // Blank page.
 
+// [PA4]
+// allocate swap space block
+int sballoc(void) {
+  acquire(&sb_lock);
+
+  int bi, m;
+
+  for(bi=0; bi< (SWAPMAX / 8); bi++) {
+    m = 1 << (bi%8);
+
+    // swap spage is free?
+    if((sbmap[bi/8] & m) == 0) {
+      sbmap[bi/8] |= m;
+      release(&sb_lock);
+      return bi;
+    }
+  }
+  release(&sb_lock);
+  return -1;
+}
+
+void sbfree(int bi) {
+  acquire(&sb_lock);
+  int m;
+  m = 1 << (bi % 8);
+  if ((sbmap[bi/8] & m) == 0) {
+    panic("error");
+  } else {
+    sbmap[bi/8] &= (~m);
+  }
+  release(&sb_lock);
+}
+
+// Swap-out: move the victim page from main memory to backing store
+// Only user pages are swappable. Some of physical pages should not be swapped out. eg) page table pages
+// // So, manage swappable pages with LRU list when init/alloc/dealloc/copy user virtual memories
+// // this means all pages in swap space are swappable.
+int swap_out() {
+  pte_t* pte;
+  uint pa;
+  uint off;
+  struct page* page = select_victim();
+  if (page == NULL) {
+    return 0;
+  }
+
+  pte = walkpgdir(page->pgdir, page->vaddr, 0);
+  pa = PTE_ADDR(*pte);
+  off = sballoc();
+  if (off == -1) {
+    return 0;
+  }
+
+  // write the victim page in swap space
+  swapwrite((char*)P2V(pa), off);
+
+  // victim page's PTE will be set as swap space offset
+  *pte = (off << 12) | PTE_FLAGS(*pte);
+  *pte &= ~PTE_P; // PTE_P will be cleared
+
+  // 구현 필요
+  // swap space의 block number가 0인 경우에는 PTE의 상위 12비트가 모두 0
+  // 그러면 유효하지 않은 PTE와 같아짐
+  // so, blk no이 0이면 seg fault가 발생해야 함 in page fault handler
+
+  kfree((char*)P2V(pa));
+  kfree_from_lru_list(P2V(pa));
+
+  return 1;
+}
+
+// Swap-in: move the victim page from backing stroe to main memory
+void swap_in(pde_t* pgdir, uint fault_addr) {
+
+  pte_t* pte;
+  int off;
+
+  char* mem;
+
+  pte = walkpgdir(pgdir, (void*)fault_addr, 0);
+  if (pte == 0 || (*pte & PTE_P)) {
+    panic("swap_in: invalid PTE");
+  }
+
+  off = (PTE_ADDR(*pte) >> 12);
+
+  // 1. Get new physical page
+  mem = kalloc();
+
+  // 2. read from swap space to physical page
+  swapread(mem, off);
+  sbfree(off);  // Bit in bitmap is cleared when page swapped in
+
+  // 3. change PTE value with physical address and set PTE_P
+  *pte = V2P(mem) | PTE_FLAGS(*pte) | PTE_P;
+
+  kalloc_to_lru_list(pgdir, mem, (void*)fault_addr);
+
+}
+
+int page_fault_handler(void) {
+  uint fault_addr = rcr2();
+  if(fault_addr >= KERNBASE) {
+    return 0;
+  }
+  swap_in(myproc()->pgdir, PGROUNDDOWN(fault_addr)); // page aligned
+  return fault_addr;
+}
+
+//

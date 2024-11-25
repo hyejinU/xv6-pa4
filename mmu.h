@@ -21,6 +21,10 @@
 // cpu->gdt[NSEGS] holds the above segments.
 #define NSEGS     6
 
+// [PA4]
+#define NULL 0
+//
+
 #ifndef __ASSEMBLER__
 // Segment Descriptor
 struct segdesc {
@@ -95,6 +99,9 @@ struct segdesc {
 #define PTE_W           0x002   // Writeable
 #define PTE_U           0x004   // User
 #define PTE_PS          0x080   // Page Size
+// [PA4]
+#define PTE_A           0x20    // Accessed bit
+//
 
 // Address in page table or page directory entry
 #define PTE_ADDR(pte)   ((uint)(pte) & ~0xFFF)
