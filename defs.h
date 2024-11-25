@@ -75,8 +75,6 @@ void            kinit2(void*, void*);
 void kalloc_to_lru_list(pde_t*, char*, void*);
 void kfree_from_lru_list(char*);
 struct page* select_victim(void);
-int count_free_pages(void);
-int count_lru_pages(void);
 //
 
 // kbd.c

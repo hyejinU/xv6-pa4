@@ -129,14 +129,8 @@ try_again:
 
 // [PA4]
 
-
-// allocate lru list page
-void kalloc_to_lru_list(pde_t* pgdir, char* pa, void* va) {
-  acquire(&lru_lock);
-  struct page* page = &pages[V2P(pa)/PGSIZE];
-  page->pgdir = pgdir;
-  page->vaddr = va;
-  
+// lru lock must be acquired before
+void add_page_to_lru_list(struct page* page) {
   // lru list에 이 page만 있음
   if(num_lru_pages == 0) {
     page->prev = page;
@@ -144,7 +138,7 @@ void kalloc_to_lru_list(pde_t* pgdir, char* pa, void* va) {
   } else if (num_lru_pages == 1) {
     // 현재 head 다음에 나를 insert
     page->prev = page_lru_head;
-    page->prev = page_lru_head->prev;
+    page_lru_head->next = page;
 
     // haed->prev와 page->next가 서로 point
     page_lru_head->prev = page;
@@ -163,18 +157,10 @@ void kalloc_to_lru_list(pde_t* pgdir, char* pa, void* va) {
   num_lru_pages++;
   if ((num_lru_pages % 100) == 0) 
     cprintf("num_lru_pages++: %d\n", num_lru_pages);
-
-  release(&lru_lock);
-
 }
 
-// deallocate lru list page
-void kfree_from_lru_list(char* v) {
-  acquire(&lru_lock);
-
-  struct page* page = &pages[V2P(v)/PGSIZE];
-  page->pgdir = NULL;
-  page->vaddr = NULL;
+// lru lock must be acquired before
+void del_page_from_lru(struct page* page) {
 
   // haed를 eviction 시도
   if(page == page_lru_head) {
@@ -198,6 +184,29 @@ void kfree_from_lru_list(char* v) {
   num_lru_pages--;
   if ((num_lru_pages % 100) == 0) 
     cprintf("num_lru_pages--: %d\n", num_lru_pages);
+}
+
+
+// allocate lru list page
+void kalloc_to_lru_list(pde_t* pgdir, char* pa, void* va) {
+  acquire(&lru_lock);
+  struct page* page = &pages[V2P(pa)/PGSIZE];
+  page->pgdir = pgdir;
+  page->vaddr = va;
+  add_page_to_lru_list(page);
+  release(&lru_lock);
+
+}
+
+// deallocate lru list page
+void kfree_from_lru_list(char* v) {
+  acquire(&lru_lock);
+
+  struct page* page = &pages[V2P(v)/PGSIZE];
+  page->pgdir = NULL;
+  page->vaddr = NULL;
+
+  del_page_from_lru(page);
 
   release(&lru_lock);
 }
@@ -250,13 +259,5 @@ struct page* select_victim(void) {
     }
     curr = nxt;
   }
-}
-
-int count_free_pages() {
-  return num_free_pages;
-}
-
-int count_lru_pages() {
-  return num_lru_pages;
 }
 //
