@@ -79,7 +79,7 @@ trap(struct trapframe *tf)
     break;
 // [PA4]
   case T_PGFLT:
-    if (handle_page_fault() == 1) {
+    if (page_fault_handler() == 1) {
       break;
     }
 //
