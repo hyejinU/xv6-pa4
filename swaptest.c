@@ -12,6 +12,7 @@
  
 char* arr[LOOP]; 
 
+// 1. sbrk test
 // int main () { 
 //     sbrk(4096*670); 
 //     for (int i =0 ; i<LOOP;i++){ 
@@ -32,6 +33,7 @@ char* arr[LOOP];
 //     exit(); 
 // }
 
+// 2. fork test
 int main () {  
 
     sbrk(4096*670); 
