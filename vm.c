@@ -454,10 +454,10 @@ int sballoc(void) {
 
   int bi, m;
 
-  for(bi=0; bi< (SWAPMAX / 8); bi++) {
+  for(bi=SWAPBASE; bi< (SWAPMAX / 8); bi++) {
     m = 1 << (bi%8);
 
-    // swap spage is free?
+    // swap space is free?
     if((sbmap[bi/8] & m) == 0) {
       sbmap[bi/8] |= m;
       release(&sb_lock);

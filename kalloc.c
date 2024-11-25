@@ -50,7 +50,7 @@ kinit2(void *vstart, void *vend)
 {
   freerange(vstart, vend);
   kmem.use_lock = 1;
-  cprintf("num_free_pages: %d\n", num_free_pages);
+  // cprintf("num_free_pages: %d\n", num_free_pages);
 }
 
 void
@@ -155,8 +155,8 @@ void add_page_to_lru_list(struct page* page) {
 
   page_lru_head = page;
   num_lru_pages++;
-  if ((num_lru_pages % 100) == 0) 
-    cprintf("num_lru_pages++: %d\n", num_lru_pages);
+  // if ((num_lru_pages % 100) == 0) 
+  //   cprintf("num_lru_pages++: %d\n", num_lru_pages);
 }
 
 // lru lock must be acquired before
@@ -182,8 +182,8 @@ void del_page_from_lru(struct page* page) {
   page->prev = NULL;
 
   num_lru_pages--;
-  if ((num_lru_pages % 100) == 0) 
-    cprintf("num_lru_pages--: %d\n", num_lru_pages);
+  // if ((num_lru_pages % 100) == 0) 
+  //   cprintf("num_lru_pages--: %d\n", num_lru_pages);
 }
 
 
@@ -226,7 +226,6 @@ struct page* select_victim(void) {
     return NULL;
   }
 
-  // Q. 모두 Accessed 1이면? 무한루프 아닌가?
   while(1) {
     struct page* nxt = curr->next;
     pde = &curr->pgdir[PDX(curr->vaddr)];
