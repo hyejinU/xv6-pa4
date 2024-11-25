@@ -72,9 +72,9 @@ void            kinit1(void*, void*);
 void            kinit2(void*, void*);
 
 // [PA4]
-void kalloc_to_lru_list(pde_t*, char*, void*);
-void kfree_from_lru_list(char*);
-struct page* select_victim(void);
+void kalloc2(pde_t*, char*, void*);
+void kfree2(char*);
+struct page* find_victim(void);
 //
 
 // kbd.c

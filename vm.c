@@ -214,7 +214,7 @@ inituvm(pde_t *pgdir, char *init, uint sz)
   mem = kalloc();
   memset(mem, 0, PGSIZE);
   mappages(pgdir, 0, PGSIZE, V2P(mem), PTE_W|PTE_U);
-  kalloc_to_lru_list(pgdir, mem, (char*)0);
+  kalloc2(pgdir, mem, (char*)0);
   memmove(mem, init, sz);
 }
 
@@ -273,7 +273,7 @@ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
       kfree(mem);
       return 0;
     }
-    kalloc_to_lru_list(pgdir, mem, (char*)a);
+    kalloc2(pgdir, mem, (char*)a);
 //
   }
   return newsz;
@@ -304,7 +304,7 @@ deallocuvm(pde_t *pgdir, uint oldsz, uint newsz)
       char *v = P2V(pa);
       kfree(v);
       // Present pages should be freed, set PTE bits to 0 and remove them from LRU list
-      kfree_from_lru_list(v); // [PA4]
+      kfree2(v); // [PA4]
       *pte = 0;
 // [PA4]
     } else if(*pte != 0) {
@@ -389,7 +389,7 @@ copyuvm(pde_t *pgdir, uint sz)
       kfree(mem);
       goto bad;
     }
-    kalloc_to_lru_list(d, mem, (void*)i);
+    kalloc2(d, mem, (void*)i);
 //
   }
   return d;
@@ -489,7 +489,7 @@ int swap_out() {
   pte_t* pte;
   uint pa;
   uint off;
-  struct page* page = select_victim();
+  struct page* page = find_victim();
   if (page == NULL) {
     return 0;
   }
@@ -514,7 +514,7 @@ int swap_out() {
   // so, blk no이 0이면 seg fault가 발생해야 함 in page fault handler
 
   kfree((char*)P2V(pa));
-  kfree_from_lru_list(P2V(pa));
+  kfree2(P2V(pa));
 
   return 1;
 }
@@ -536,7 +536,7 @@ void swap_in(pde_t* pgdir, uint fault_addr) {
 
   // 1. Get new physical page
   mem = kalloc();
-  kalloc_to_lru_list(pgdir, mem, (void*)fault_addr);
+  kalloc2(pgdir, mem, (void*)fault_addr);
 
   // 2. read from swap space to physical page
   swapread(mem, off);
