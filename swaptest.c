@@ -15,8 +15,8 @@ char* arr[LOOP];
 int main () { 
     sbrk(4096*670); 
     for (int i =0 ; i<LOOP;i++){ 
-        if(i%10 == 0) 
-            printf(1,"proc sbrk %d\n",i); 
+        // if(i%10 == 0) 
+        //     printf(1,"proc sbrk %d\n",i); 
         char* p = sbrk(4096); 
         if(p==(char*)-1) break; 
         *p = 'A'; 
