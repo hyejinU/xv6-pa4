@@ -129,8 +129,14 @@ try_again:
 
 // [PA4]
 
-// lru lock must be acquired before
-void add_page_to_lru_list(struct page* page) {
+
+// allocate lru list page
+void kalloc_to_lru_list(pde_t* pgdir, char* pa, void* va) {
+  acquire(&lru_lock);
+  struct page* page = &pages[V2P(pa)/PGSIZE];
+  page->pgdir = pgdir;
+  page->vaddr = va;
+  
   // lru list에 이 page만 있음
   if(num_lru_pages == 0) {
     page->prev = page;
@@ -157,10 +163,18 @@ void add_page_to_lru_list(struct page* page) {
   num_lru_pages++;
   if ((num_lru_pages % 100) == 0) 
     cprintf("num_lru_pages++: %d\n", num_lru_pages);
+
+  release(&lru_lock);
+
 }
 
-// lru lock must be acquired before
-void del_page_from_lru(struct page* page) {
+// deallocate lru list page
+void kfree_from_lru_list(char* v) {
+  acquire(&lru_lock);
+
+  struct page* page = &pages[V2P(v)/PGSIZE];
+  page->pgdir = NULL;
+  page->vaddr = NULL;
 
   // haed를 eviction 시도
   if(page == page_lru_head) {
@@ -184,29 +198,6 @@ void del_page_from_lru(struct page* page) {
   num_lru_pages--;
   if ((num_lru_pages % 100) == 0) 
     cprintf("num_lru_pages--: %d\n", num_lru_pages);
-}
-
-
-// allocate lru list page
-void kalloc_to_lru_list(pde_t* pgdir, char* pa, void* va) {
-  acquire(&lru_lock);
-  struct page* page = &pages[V2P(pa)/PGSIZE];
-  page->pgdir = pgdir;
-  page->vaddr = va;
-  add_page_to_lru_list(page);
-  release(&lru_lock);
-
-}
-
-// deallocate lru list page
-void kfree_from_lru_list(char* v) {
-  acquire(&lru_lock);
-
-  struct page* page = &pages[V2P(v)/PGSIZE];
-  page->pgdir = NULL;
-  page->vaddr = NULL;
-
-  del_page_from_lru(page);
 
   release(&lru_lock);
 }
