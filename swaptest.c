@@ -32,12 +32,10 @@ char* arr[LOOP];
 //     exit(); 
 // }
 
-int main () { 
-    int a,b; 
-    swapstat(&a,&b); 
+int main () {  
 
     sbrk(4096*670); 
-    
+
     int pid = fork();
     if (pid == 0) {
         for (int i =0 ; i<LOOP;i++){ 
@@ -46,6 +44,8 @@ int main () {
             *p = 'A'; 
             arr[i]=p; 
         } 
+        int a,b; 
+        swapstat(&a,&b);
         printf(1, "Child Swap space: %d/%d\n", a, b);
         exit();
     } else {
