@@ -50,6 +50,7 @@ kinit2(void *vstart, void *vend)
 {
   freerange(vstart, vend);
   kmem.use_lock = 1;
+  cprintf("num_free_pages: %d\n", num_free_pages);
 }
 
 void
