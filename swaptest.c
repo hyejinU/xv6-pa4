@@ -1,78 +1,52 @@
-#include "param.h"
-#include "types.h"
-#include "stat.h"
-#include "user.h"
-#include "fs.h"
-#include "fcntl.h"
-#include "syscall.h"
-#include "traps.h"
-#include "memlayout.h"
+#include "param.h" 
+#include "types.h" 
+#include "stat.h" 
+#include "user.h" 
+#include "fs.h" 
+#include "fcntl.h" 
+#include "syscall.h" 
+#include "traps.h" 
+#include "memlayout.h" 
+ 
+#define LOOP 800 
+ 
+char* arr[LOOP]; 
 
+// int main () { 
+//     sbrk(4096*670); 
+//     for (int i =0 ; i<LOOP;i++){ 
+//         // if(i%10 == 0) 
+//         //     printf(1,"proc sbrk %d\n",i); 
+//         char* p = sbrk(4096); 
+//         if(p==(char*)-1) break; 
+//         *p = 'A'; 
+//         arr[i]=p; 
+//     } 
+//     printf(1,"finish sbrk\n"); 
+//     for(int i=0;i<LOOP;i+=200){ 
+//         printf(1,"print %d : %x -> %c\n",i,(int)arr[i],*arr[i]); 
+//     } 
+//     int a,b; 
+//     swapstat(&a,&b); 
+//     printf(1,"swapstat %d %d\n",a,b); 
+//     exit(); 
+// }
 
-int main () {
-	int a, b;
-    swapstat(&a, &b);
-
-    printf(1, "Swap space: %d/%d\n", a, b);
-
-    // sbrk loop
-    for (int i = 0; i < 30000; i++) {
-        void *p = sbrk(4096);
-        if (p == (void *)-1) {
-            printf(1, "sbrk failed\n");
-            break;
-        }
-    }
-
-    swapstat(&a, &b);
-    printf(1, "Swap space: %d/%d\n", a, b);
-
+int main () { 
+    int a,b; 
+    swapstat(&a,&b); 
     int pid = fork();
-    if(pid == 0) {
-        for (int i = 0; i < 30000; i++) {
-            void *p = sbrk(4096);
-            if (p == (void *)-1) {
-                printf(1, "sbrk failed\n");
-                break;
-            }
-        }
-
+    if (pid == 0) {
+        for (int i =0 ; i<LOOP;i++){ 
+            char* p = sbrk(4096); 
+            if(p==(char*)-1) break; 
+            *p = 'A'; 
+            arr[i]=p; 
+        } 
         printf(1, "Child Swap space: %d/%d\n", a, b);
-
         exit();
-    }else{
+    } else {
         wait();
     }
 
-    // un-sbrk loop
-    for (int i = 0; i < 60000; i++) {
-        void *p = sbrk(-4096);
-        if (p == (void *)-1) {
-            printf(1, "sbrk failed\n");
-            break;
-        }
-    }
-
-    swapstat(&a, &b);
-    printf(1, "Swap space: %d/%d\n", a, b);
-
-
-    exit();
 }
-
-// #include "param.h"
-// #include "types.h"
-// #include "stat.h"
-// #include "user.h"
-// #include "fs.h"
-// #include "fcntl.h"
-// #include "syscall.h"
-// #include "traps.h"
-// #include "memlayout.h"
-
-
-// int main () {
-// 	int a, b;
-
-//     swapstat(&a, &b);
-// }
