@@ -485,7 +485,7 @@ void sbfree(int bi) {
 // // So, manage swappable pages with LRU list when init/alloc/dealloc/copy user virtual memories
 // // this means all pages in swap space are swappable.
 int swap_out() {
-  cprintf("swap_out\n");
+  // cprintf("swap_out\n");
   pte_t* pte;
   uint pa;
   uint off;
@@ -521,7 +521,7 @@ int swap_out() {
 
 // Swap-in: move the victim page from backing stroe to main memory
 void swap_in(pde_t* pgdir, uint fault_addr) {
-  cprintf("swap_in\n");
+  // cprintf("swap_in\n");14 err 4 on cpu
   pte_t* pte;
   int off;
 
