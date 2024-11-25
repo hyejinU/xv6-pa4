@@ -35,6 +35,9 @@ char* arr[LOOP];
 int main () { 
     int a,b; 
     swapstat(&a,&b); 
+
+    sbrk(4096*670); 
+    
     int pid = fork();
     if (pid == 0) {
         for (int i =0 ; i<LOOP;i++){ 
