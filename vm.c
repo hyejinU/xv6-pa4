@@ -520,12 +520,14 @@ int swap_out() {
 }
 
 // Swap-in: move the victim page from backing stroe to main memory
-void swap_in(pde_t* pgdir, uint fault_addr) {
+void swap_in(uint fault_addr) {
   // cprintf("swap_in\n");
   pte_t* pte;
   int off;
 
   char* mem;
+  pde_t *pgdir;
+  pgdir = myproc()->pgdir;
 
   pte = walkpgdir(pgdir, (void*)fault_addr, 0);
   if (pte == 0 || (*pte & PTE_P)) {
@@ -552,7 +554,7 @@ int page_fault_handler(void) {
   if(fault_addr >= KERNBASE) {
     return 0;
   }
-  swap_in(myproc()->pgdir, PGROUNDDOWN(fault_addr)); // page aligned
+  swap_in(PGROUNDDOWN(fault_addr)); // page aligned
   return fault_addr;
 }
 

@@ -198,7 +198,7 @@ void            clearpteu(pde_t *pgdir, char *uva);
 int sballoc(void);
 void sbfree(int);
 int swap_out();
-void swap_in(pde_t*, uint); 
+void swap_in(uint); 
 int page_fault_handler(void);
 //
 
