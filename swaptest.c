@@ -24,7 +24,7 @@ int main () {
     } 
     printf(1,"finish sbrk\n"); 
     for(int i=0;i<LOOP;i+=200){ 
-        printf(1,"print %d : %x ->%c\n",i,(int)arr[i],*arr[i]); 
+        printf(1,"print %d : %x -> %c\n",i,(int)arr[i],*arr[i]); 
     } 
     int a,b; 
     swapstat(&a,&b); 

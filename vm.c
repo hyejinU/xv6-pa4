@@ -521,7 +521,7 @@ int swap_out() {
 
 // Swap-in: move the victim page from backing stroe to main memory
 void swap_in(pde_t* pgdir, uint fault_addr) {
-  // cprintf("swap_in\n");14 err 4 on cpu
+  // cprintf("swap_in\n");
   pte_t* pte;
   int off;
 
@@ -536,6 +536,7 @@ void swap_in(pde_t* pgdir, uint fault_addr) {
 
   // 1. Get new physical page
   mem = kalloc();
+  kalloc_to_lru_list(pgdir, mem, (void*)fault_addr);
 
   // 2. read from swap space to physical page
   swapread(mem, off);
@@ -543,8 +544,6 @@ void swap_in(pde_t* pgdir, uint fault_addr) {
 
   // 3. change PTE value with physical address and set PTE_P
   *pte = V2P(mem) | PTE_FLAGS(*pte) | PTE_P;
-
-  kalloc_to_lru_list(pgdir, mem, (void*)fault_addr);
 
 }
 
