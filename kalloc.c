@@ -233,7 +233,7 @@ struct page* select_victim(void) {
 
     // if PTE_A == 1, clear it and send the page to the tail of LRU list
     // if PTE_A == 0, evict the page (victim page)
-    if (*pte * PTE_A) {
+    if (*pte & PTE_A) {
       *pte &= (~PTE_A); //clear
       if (curr == page_lru_head) {
         page_lru_head = curr->next;
