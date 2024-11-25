@@ -67,15 +67,14 @@ void            ioapicinit(void);
 
 // kalloc.c
 char*           kalloc(void);
+void            kalloc2(pde_t*, char*, void*);
 void            kfree(char*);
+void            kfree2(char*);
 void            kinit1(void*, void*);
 void            kinit2(void*, void*);
-
-// [PA4]
-void kalloc_to_lru_list(pde_t*, char*, void*);
-void kfree_from_lru_list(char*);
-struct page* select_victim(void);
-//
+struct page*    find_victim();
+int             num_of_free_pages(void);
+int             num_of_lru_pages(void);
 
 // kbd.c
 void            kbdintr(void);
@@ -193,14 +192,12 @@ void            switchuvm(struct proc*);
 void            switchkvm(void);
 int             copyout(pde_t*, uint, void*, uint);
 void            clearpteu(pde_t *pgdir, char *uva);
-
-// [PA4]
-int sballoc(void);
-void sbfree(int);
-int swap_out();
-void swap_in(pde_t*, uint); 
-int page_fault_handler(void);
-//
+int             sballoc();
+void            sbfree(int);
+int             swap_out();
+void            swap_in(uint);
+int             handle_page_fault();
+int             num_of_pgtab();
 
 // number of elements in fixed-size array
 #define NELEM(x) (sizeof(x)/sizeof((x)[0]))
