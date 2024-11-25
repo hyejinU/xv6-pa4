@@ -1,222 +1,203 @@
-// Physical memory allocator, intended to allocate
-// memory for user processes, kernel stacks, page table pages,
-// and pipe buffers. Allocates 4096-byte pages.
+struct buf;
+struct context;
+struct file;
+struct inode;
+struct pipe;
+struct proc;
+struct rtcdate;
+struct spinlock;
+struct sleeplock;
+struct stat;
+struct superblock;
 
-#include "types.h"
-#include "defs.h"
-#include "param.h"
-#include "memlayout.h"
-#include "mmu.h"
-#include "spinlock.h"
+// bio.c
+void            binit(void);
+struct buf*     bread(uint, uint);
+void            brelse(struct buf*);
+void            bwrite(struct buf*);
 
-void freerange(void *vstart, void *vend);
-extern char end[]; // first address after kernel loaded from ELF file
-                   // defined by the kernel linker script in kernel.ld
+// console.c
+void            consoleinit(void);
+void            cprintf(char*, ...);
+void            consoleintr(int(*)(void));
+void            panic(char*) __attribute__((noreturn));
 
-struct run {
-  struct run *next;
-};
+// exec.c
+int             exec(char*, char**);
 
-struct {
-  struct spinlock lock;
-  int use_lock;
-  struct run *freelist;
-} kmem;
+// file.c
+struct file*    filealloc(void);
+void            fileclose(struct file*);
+struct file*    filedup(struct file*);
+void            fileinit(void);
+int             fileread(struct file*, char*, int n);
+int             filestat(struct file*, struct stat*);
+int             filewrite(struct file*, char*, int n);
 
-struct spinlock lru_lock;
-struct page pages[PHYSTOP/PGSIZE];
-struct page *page_lru_head;
-int num_free_pages;
-int num_lru_pages;
+// fs.c
+void            readsb(int dev, struct superblock *sb);
+int             dirlink(struct inode*, char*, uint);
+struct inode*   dirlookup(struct inode*, char*, uint*);
+struct inode*   ialloc(uint, short);
+struct inode*   idup(struct inode*);
+void            iinit(int dev);
+void            ilock(struct inode*);
+void            iput(struct inode*);
+void            iunlock(struct inode*);
+void            iunlockput(struct inode*);
+void            iupdate(struct inode*);
+int             namecmp(const char*, const char*);
+struct inode*   namei(char*);
+struct inode*   nameiparent(char*, char*);
+int             readi(struct inode*, char*, uint, uint);
+void            stati(struct inode*, struct stat*);
+int             writei(struct inode*, char*, uint, uint);
+void swapread(char* ptr, int blkno);
+void swapwrite(char* ptr, int blkno);
 
-// Initialization happens in two phases.
-// 1. main() calls kinit1() while still using entrypgdir to place just
-// the pages mapped by entrypgdir on free list.
-// 2. main() calls kinit2() with the rest of the physical pages
-// after installing a full page table that maps them on all cores.
-void
-kinit1(void *vstart, void *vend)
-{
-  initlock(&kmem.lock, "kmem");
-  initlock(&lru_lock, "lru");
-  kmem.use_lock = 0;
-  freerange(vstart, vend);
-}
+// ide.c
+void            ideinit(void);
+void            ideintr(void);
+void            iderw(struct buf*);
 
-void
-kinit2(void *vstart, void *vend)
-{
-  freerange(vstart, vend);
-  kmem.use_lock = 1;
-}
+// ioapic.c
+void            ioapicenable(int irq, int cpu);
+extern uchar    ioapicid;
+void            ioapicinit(void);
 
-void
-freerange(void *vstart, void *vend)
-{
-  char *p;
-  p = (char*)PGROUNDUP((uint)vstart);
-  for(; p + PGSIZE <= (char*)vend; p += PGSIZE)
-    kfree(p);
-}
-//PAGEBREAK: 21
-// Free the page of physical memory pointed at by v,
-// which normally should have been returned by a
-// call to kalloc().  (The exception is when
-// initializing the allocator; see kinit above.)
-void
-kfree(char *v)
-{
-  struct run *r;
+// kalloc.c
+char*           kalloc(void);
+void            kalloc2(pde_t*, char*, void*);
+void            kfree(char*);
+void            kfree2(char*);
+void            kinit1(void*, void*);
+void            kinit2(void*, void*);
+struct page*    find_victim();
+int             num_of_free_pages(void);
+int             num_of_lru_pages(void);
 
-  if((uint)v % PGSIZE || v < end || V2P(v) >= PHYSTOP)
-    panic("kfree");
+// kbd.c
+void            kbdintr(void);
 
-  // Fill with junk to catch dangling refs.
-  memset(v, 1, PGSIZE);
+// lapic.c
+void            cmostime(struct rtcdate *r);
+int             lapicid(void);
+extern volatile uint*    lapic;
+void            lapiceoi(void);
+void            lapicinit(void);
+void            lapicstartap(uchar, uint);
+void            microdelay(int);
 
-  if(kmem.use_lock)
-    acquire(&kmem.lock);
-  r = (struct run*)v;
-  r->next = kmem.freelist;
-  kmem.freelist = r;
+// log.c
+void            initlog(int dev);
+void            log_write(struct buf*);
+void            begin_op();
+void            end_op();
 
-  num_free_pages += 1;
+// mp.c
+extern int      ismp;
+void            mpinit(void);
 
-  if(kmem.use_lock)
-    release(&kmem.lock);
-}
-// Allocate one 4096-byte page of physical memory.
-// Returns a pointer that the kernel can use.
-// Returns 0 if the memory cannot be allocated.
-char*
-kalloc(void)
-{
-  struct run *r;
+// picirq.c
+void            picenable(int);
+void            picinit(void);
 
-try_again:
-  if(kmem.use_lock)
-    acquire(&kmem.lock);
-  r = kmem.freelist;
-//  if(!r && reclaim())
-//	  goto try_again;
-  if(r) {
-    kmem.freelist = r->next;
-    num_free_pages -= 1;
-  } else {
-    if(kmem.use_lock)
-      release(&kmem.lock);
-    if(swap_out() == 0) { // out of memory
-      cprintf("kalloc: out of memory\n");
-      return (char*)0;
-    }
-    goto try_again;
-  }
-  if(kmem.use_lock)
-    release(&kmem.lock);
-  return (char*)r;
-}
+// pipe.c
+int             pipealloc(struct file**, struct file**);
+void            pipeclose(struct pipe*, int);
+int             piperead(struct pipe*, char*, int);
+int             pipewrite(struct pipe*, char*, int);
 
-void
-kalloc2(pde_t *pgdir, char *pa, void *va)
-{
-  acquire(&lru_lock);
-  struct page *page = &pages[V2P(pa)/PGSIZE];
+//PAGEBREAK: 16
+// proc.c
+int             cpuid(void);
+void            exit(void);
+int             fork(void);
+int             growproc(int);
+int             kill(int);
+struct cpu*     mycpu(void);
+struct proc*    myproc();
+void            pinit(void);
+void            procdump(void);
+void            scheduler(void) __attribute__((noreturn));
+void            sched(void);
+void            setproc(struct proc*);
+void            sleep(void*, struct spinlock*);
+void            userinit(void);
+int             wait(void);
+void            wakeup(void*);
+void            yield(void);
 
-  page->pgdir = pgdir;
-  page->vaddr = va;
+// swtch.S
+void            swtch(struct context**, struct context*);
 
-  if(num_lru_pages == 0) { // n == 0
-    page->prev = page;
-    page->next = page;
-  } else {
-    if(num_lru_pages == 1) { // n == 1
-      page->prev = page_lru_head;
-      page_lru_head->next = page; 
-    } else { // n > 1
-      page_lru_head->prev->next = page; 
-      page->prev = page_lru_head->prev;
-    }
-    page_lru_head->prev = page;
-    page->next = page_lru_head;
-  }
-  page_lru_head = page;
+// spinlock.c
+void            acquire(struct spinlock*);
+void            getcallerpcs(void*, uint*);
+int             holding(struct spinlock*);
+void            initlock(struct spinlock*, char*);
+void            release(struct spinlock*);
+void            pushcli(void);
+void            popcli(void);
 
-  num_lru_pages += 1;
-  release(&lru_lock);
-}
+// sleeplock.c
+void            acquiresleep(struct sleeplock*);
+void            releasesleep(struct sleeplock*);
+int             holdingsleep(struct sleeplock*);
+void            initsleeplock(struct sleeplock*, char*);
 
-void
-kfree2(char *v)
-{
-  acquire(&lru_lock);
-  struct page *page = &pages[V2P(v)/PGSIZE];
-  page->pgdir = 0;
-  page->vaddr = 0;
+// string.c
+int             memcmp(const void*, const void*, uint);
+void*           memmove(void*, const void*, uint);
+void*           memset(void*, int, uint);
+char*           safestrcpy(char*, const char*, int);
+int             strlen(const char*);
+int             strncmp(const char*, const char*, uint);
+char*           strncpy(char*, const char*, int);
 
-  if(page == page_lru_head)
-    page_lru_head = page->next;
+// syscall.c
+int             argint(int, int*);
+int             argptr(int, char**, int);
+int             argstr(int, char**);
+int             fetchint(uint, int*);
+int             fetchstr(uint, char**);
+void            syscall(void);
 
-  if(num_lru_pages > 1) {
-    page->prev->next = page->next;
-    page->next->prev = page->prev;
-  } else {
-    page_lru_head = 0;
-  }
-  page->next = 0;
-  page->prev = 0;
+// timer.c
+void            timerinit(void);
 
-  num_lru_pages -= 1;
-  release(&lru_lock);
-}
+// trap.c
+void            idtinit(void);
+extern uint     ticks;
+void            tvinit(void);
+extern struct spinlock tickslock;
 
-struct page*
-find_victim()
-{
-  acquire(&lru_lock);
-  struct page *curr = page_lru_head;
-  pde_t *pde;
-  pte_t *pgtab;
-  pte_t *pte;
-  if(curr == 0) { // 쫓아낼 swappable page가 없을 때.
-    release(&lru_lock);
-    return 0;
-  }
-  while(1) {
-    struct page *nxt = curr->next;
-    pde = &curr->pgdir[PDX(curr->vaddr)];
-    if(*pde & PTE_P) {
-      pgtab = (pte_t*)P2V(PTE_ADDR(*pde));
-      pte = &pgtab[PTX(curr->vaddr)];
-    } else {
-      panic("find_victim: pde must have PTE_P bits in lru_list");
-    }
-    if(*pte & PTE_A) {
-      *pte &= (~PTE_A);
-      if(curr == page_lru_head) {
-        page_lru_head = curr->next;
-      } else {
-        // move to tail
-        curr->prev->next = curr->next;
-        curr->next->prev = curr->prev;
-        page_lru_head->prev->next = curr;
-        curr->prev = page_lru_head->prev;
-        page_lru_head->prev = curr;
-        curr->next = page_lru_head;
-      }
-    } else {
-      release(&lru_lock);
-      return curr;
-    }
-    curr = nxt;
-  }
-}
+// uart.c
+void            uartinit(void);
+void            uartintr(void);
+void            uartputc(int);
 
-int num_of_free_pages()
-{
-  return num_free_pages;
-}
+// vm.c
+void            seginit(void);
+void            kvmalloc(void);
+pde_t*          setupkvm(void);
+char*           uva2ka(pde_t*, char*);
+int             allocuvm(pde_t*, uint, uint);
+int             deallocuvm(pde_t*, uint, uint);
+void            freevm(pde_t*);
+void            inituvm(pde_t*, char*, uint);
+int             loaduvm(pde_t*, char*, struct inode*, uint, uint);
+pde_t*          copyuvm(pde_t*, uint);
+void            switchuvm(struct proc*);
+void            switchkvm(void);
+int             copyout(pde_t*, uint, void*, uint);
+void            clearpteu(pde_t *pgdir, char *uva);
+int             sballoc();
+void            sbfree(int);
+int             swap_out();
+void            swap_in(uint);
+int             handle_page_fault();
+int             num_of_pgtab();
 
-int num_of_lru_pages()
-{
-  return num_lru_pages;
-}
+// number of elements in fixed-size array
+#define NELEM(x) (sizeof(x)/sizeof((x)[0]))
