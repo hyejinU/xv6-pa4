@@ -372,8 +372,23 @@ copyuvm(pde_t *pgdir, uint sz)
         cprintf("copyuvm: out of memory\n");
         goto bad;
       }
-      swapread(mem, (PTE_ADDR(*pte) >> 12));
+
+      int blkno = (PTE_ADDR(*pte) >> 12);
+      if (blkno < 0 || blkno >= SWAPMAX) {
+        continue;
+      }
+      swapread(mem, blkno);
+
+      // new blk
+      int new_blkno = sballoc();
+      if(new_blkno == -1) {
+        goto bad;
+      }
+      swapwrite(mem, new_blkno);
       flags = PTE_FLAGS(*pte) | PTE_P;
+
+      pte_t* new_pte = walkpgdir(d, (void*)i, 0);
+      *new_pte = (new_blkno << 12) | flags;      
     } else {
       // present pages should be copied
       pa = PTE_ADDR(*pte);
@@ -383,18 +398,25 @@ copyuvm(pde_t *pgdir, uint sz)
         goto bad;
       }
       memmove(mem, (char*)P2V(pa), PGSIZE);
+      if(mappages(d, (void*)i, PGSIZE, V2P(mem), flags) < 0) {
+        cprintf("copyuvm: out of memory\n");
+        kfree(mem);
+        goto bad;
+      }
     }
-    if(mappages(d, (void*)i, PGSIZE, V2P(mem), flags) < 0) {
-      cprintf("copyuvm: out of memory\n");
+    if (mem) {
       kfree(mem);
-      goto bad;
     }
-    kalloc_to_lru_list(d, mem, (void*)i);
 //
   }
   return d;
-
+  
 bad:
+// [PA4]
+  if (mem) {
+    kfree(mem);
+  }
+// 
   freevm(d);
   return 0;
 }
@@ -454,7 +476,7 @@ int sballoc(void) {
 
   int bi, m;
 
-  for(bi=SWAPBASE; bi< (SWAPMAX / 8); bi++) {
+  for(bi=0; bi< (SWAPMAX / 8); bi++) {
     m = 1 << (bi%8);
 
     // swap space is free?
@@ -503,18 +525,14 @@ int swap_out() {
 
   // write the victim page in swap space
   swapwrite((char*)P2V(pa), off);
+  // remove from lru list
+  kfree_from_lru_list(P2V(pa));
 
   // victim page's PTE will be set as swap space offset
   *pte = (off << 12) | PTE_FLAGS(*pte);
   *pte &= ~PTE_P; // PTE_P will be cleared
 
-  // 구현 필요
-  // swap space의 block number가 0인 경우에는 PTE의 상위 12비트가 모두 0
-  // 그러면 유효하지 않은 PTE와 같아짐
-  // so, blk no이 0이면 seg fault가 발생해야 함 in page fault handler
-
   kfree((char*)P2V(pa));
-  kfree_from_lru_list(P2V(pa));
 
   return 1;
 }
@@ -528,15 +546,25 @@ void swap_in(pde_t* pgdir, uint fault_addr) {
   char* mem;
 
   pte = walkpgdir(pgdir, (void*)fault_addr, 0);
-  if (pte == 0 || (*pte & PTE_P)) {
+  if(pte == 0 || *pte & PTE_P || (*pte & PTE_U) == 0){
     panic("swap_in: invalid PTE");
   }
 
   off = (PTE_ADDR(*pte) >> 12);
 
+  // swap space의 block number가 0인 경우에는 PTE의 상위 12비트가 모두 0
+  // 그러면 유효하지 않은 PTE와 같아짐
+  // so, blk no이 0이면 seg fault가 발생해야 함 in page fault handler
+  if (off == NULL) {
+    panic("swap_in: segfault");
+  }
+
   // 1. Get new physical page
   mem = kalloc();
-  kalloc_to_lru_list(pgdir, mem, (void*)fault_addr);
+  // !확인!
+  // if (mem == NULL) {
+      // return -1;
+  // }
 
   // 2. read from swap space to physical page
   swapread(mem, off);
@@ -545,6 +573,7 @@ void swap_in(pde_t* pgdir, uint fault_addr) {
   // 3. change PTE value with physical address and set PTE_P
   *pte = V2P(mem) | PTE_FLAGS(*pte) | PTE_P;
 
+  kalloc_to_lru_list(pgdir, mem, (void*)fault_addr);
 }
 
 int page_fault_handler(void) {
