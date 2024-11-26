@@ -349,6 +349,56 @@ clearpteu(pde_t *pgdir, char *uva)
   *pte &= ~PTE_U;
 }
 
+// // Given a parent process's page table, create a copy
+// // of it for a child.
+// pde_t*
+// copyuvm(pde_t *pgdir, uint sz)
+// {
+//   pde_t *d;
+//   pte_t *pte;
+//   uint pa, i, flags;
+//   char *mem;
+
+//   if((d = setupkvm()) == 0)
+//     return 0;
+//   for(i = 0; i < sz; i += PGSIZE){
+//     if((pte = walkpgdir(pgdir, (void *) i, 0)) == 0)
+//       panic("copyuvm: pte should exist");
+
+// // [PA4]
+//     if(!(*pte & PTE_P)) {
+//       // swapped out pages should also be copied
+//       if((mem = kalloc()) == 0) {
+//         cprintf("copyuvm: out of memory\n");
+//         goto bad;
+//       }
+//       swapread(mem, (PTE_ADDR(*pte) >> 12));
+//       flags = PTE_FLAGS(*pte) | PTE_P;
+//     } else {
+//       // present pages should be copied
+//       pa = PTE_ADDR(*pte);
+//       flags = PTE_FLAGS(*pte);
+//       if ((mem = kalloc()) == 0) {
+//         cprintf("copyuvm: out of memory\n");
+//         goto bad;
+//       }
+//       memmove(mem, (char*)P2V(pa), PGSIZE);
+//     }
+//     if(mappages(d, (void*)i, PGSIZE, V2P(mem), flags) < 0) {
+//       cprintf("copyuvm: out of memory\n");
+//       kfree(mem);
+//       goto bad;
+//     }
+//     kalloc_to_lru_list(d, mem, (void*)i);
+// //
+//   }
+//   return d;
+
+// bad:
+//   freevm(d);
+//   return 0;
+// }
+
 // Given a parent process's page table, create a copy
 // of it for a child.
 pde_t*
@@ -372,7 +422,11 @@ copyuvm(pde_t *pgdir, uint sz)
         cprintf("copyuvm: out of memory\n");
         goto bad;
       }
-      swapread(mem, (PTE_ADDR(*pte) >> 12));
+      int blkno = (PTE_ADDR(*pte) >> 12);
+      if (blkno < 0 || blkno >= SWAPMAX) {
+        continue;
+      }
+      swapread(mem, blkno);
       flags = PTE_FLAGS(*pte) | PTE_P;
     } else {
       // present pages should be copied
@@ -392,9 +446,15 @@ copyuvm(pde_t *pgdir, uint sz)
     kalloc_to_lru_list(d, mem, (void*)i);
 //
   }
+  if (mem) {
+    kfree(mem);
+  }
   return d;
 
 bad:
+  if (mem) {
+    kfree(mem);
+  }
   freevm(d);
   return 0;
 }
