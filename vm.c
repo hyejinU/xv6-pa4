@@ -408,7 +408,6 @@ copyuvm(pde_t *pgdir, uint sz)
   pte_t *pte;
   uint pa, i, flags;
   char *mem;
-  char *swap_mem = NULL;
 
   if((d = setupkvm()) == 0)
     return 0;
