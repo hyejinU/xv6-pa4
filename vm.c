@@ -92,6 +92,10 @@ mappages(pde_t *pgdir, void *va, uint size, uint pa, int perm)
     if(*pte & PTE_P)
       panic("remap");
     *pte = pa | perm | PTE_P;
+// [PA4]
+    if (perm & PTE_U)
+      kalloc_to_lru_list(pgdir, (char*)P2V(pa), (char*)va);
+//
     if(a == last)
       break;
     a += PGSIZE;
@@ -214,7 +218,6 @@ inituvm(pde_t *pgdir, char *init, uint sz)
   mem = kalloc();
   memset(mem, 0, PGSIZE);
   mappages(pgdir, 0, PGSIZE, V2P(mem), PTE_W|PTE_U);
-  kalloc_to_lru_list(pgdir, mem, (char*)0);
   memmove(mem, init, sz);
 }
 
@@ -273,7 +276,6 @@ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
       kfree(mem);
       return 0;
     }
-    kalloc_to_lru_list(pgdir, mem, (char*)a);
 //
   }
   return newsz;
@@ -391,8 +393,7 @@ copyuvm(pde_t *pgdir, uint sz)
       cprintf("copyuvm: out of memory\n");
       kfree(mem);
       goto bad;
-    }
-    kalloc_to_lru_list(d, mem, (void*)i);
+    } 
 //
   }
   return d;
