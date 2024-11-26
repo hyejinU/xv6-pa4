@@ -408,13 +408,13 @@ copyuvm(pde_t *pgdir, uint sz)
   pte_t *pte;
   uint pa, i, flags;
   char *mem;
+  char *swap_mem = NULL;
 
   if((d = setupkvm()) == 0)
     return 0;
   for(i = 0; i < sz; i += PGSIZE){
     if((pte = walkpgdir(pgdir, (void *) i, 0)) == 0)
       panic("copyuvm: pte should exist");
-
 // [PA4]
     if(!(*pte & PTE_P)) {
       // swapped out pages should also be copied
@@ -446,15 +446,9 @@ copyuvm(pde_t *pgdir, uint sz)
     kalloc_to_lru_list(d, mem, (void*)i);
 //
   }
-  if (mem) {
-    kfree(mem);
-  }
   return d;
 
 bad:
-  if (mem) {
-    kfree(mem);
-  }
   freevm(d);
   return 0;
 }
