@@ -13,46 +13,46 @@
 char* arr[LOOP]; 
 
 // 1. sbrk test
-// int main () { 
-//     sbrk(4096*670); 
-//     for (int i =0 ; i<LOOP;i++){ 
-//         // if(i%10 == 0) 
-//         //     printf(1,"proc sbrk %d\n",i); 
-//         char* p = sbrk(4096); 
-//         if(p==(char*)-1) break; 
-//         *p = 'A'; 
-//         arr[i]=p; 
-//     } 
-//     printf(1,"finish sbrk\n"); 
-//     for(int i=0;i<LOOP;i+=200){ 
-//         printf(1,"print %d : %x -> %c\n",i,(int)arr[i],*arr[i]); 
-//     } 
-//     int a,b; 
-//     swapstat(&a,&b); 
-//     printf(1,"swapstat %d %d\n",a,b); 
-//     exit(); 
-// }
+int main () { 
+    sbrk(4096*670); 
+    for (int i =0 ; i<LOOP;i++){ 
+        // if(i%10 == 0) 
+        //     printf(1,"proc sbrk %d\n",i); 
+        char* p = sbrk(4096); 
+        if(p==(char*)-1) break; 
+        *p = 'A'; 
+        arr[i]=p; 
+    } 
+    printf(1,"finish sbrk\n"); 
+    for(int i=0;i<LOOP;i+=200){ 
+        printf(1,"print %d : %x -> %c\n",i,(int)arr[i],*arr[i]); 
+    } 
+    int a,b; 
+    swapstat(&a,&b); 
+    printf(1,"swapstat %d %d\n",a,b); 
+    exit(); 
+}
 
 // 2. fork test
-int main () {  
+// int main () {  
 
-    sbrk(4096*670); 
+//     sbrk(4096*670); 
 
-    int pid = fork();
-    if (pid == 0) {
-        for (int i =0 ; i<LOOP;i++){ 
-            char* p = sbrk(4096); 
-            if(p==(char*)-1) break; 
-            *p = 'A'; 
-            arr[i]=p; 
-        } 
-        int a,b; 
-        swapstat(&a,&b);
-        printf(1, "Child Swap space: %d/%d\n", a, b);
-        exit();
-    } else {
-        wait();
-    }
-    exit();
+//     int pid = fork();
+//     if (pid == 0) {
+//         for (int i =0 ; i<LOOP;i++){ 
+//             char* p = sbrk(4096); 
+//             if(p==(char*)-1) break; 
+//             *p = 'A'; 
+//             arr[i]=p; 
+//         } 
+//         int a,b; 
+//         swapstat(&a,&b);
+//         printf(1, "Child Swap space: %d/%d\n", a, b);
+//         exit();
+//     } else {
+//         wait();
+//     }
+//     exit();
 
-}
+// }
