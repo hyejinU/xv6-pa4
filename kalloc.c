@@ -250,7 +250,7 @@ struct page* select_victim(void) {
       curr = nxt;
     } else if ((*pte & PTE_U) == 0) {
       // not a user page, evict
-      del_page_from_lru(PTE_ADDR(*pte));
+      kfree_from_lru_list(PTE_ADDR(*pte));
     }else {
       // victim page
       release(&lru_lock);
