@@ -248,10 +248,7 @@ struct page* select_victim(void) {
       *pte &= (~PTE_A); //clear
       page_lru_head = curr->next; //to tail
       curr = nxt;
-    } else if ((*pte & PTE_U) == 0) {
-      // not a user page, evict
-      kfree_from_lru_list(P2V(PTE_ADDR(*pde)));
-    }else {
+    } else {
       // victim page
       release(&lru_lock);
       return curr;
