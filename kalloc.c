@@ -246,17 +246,24 @@ struct page* select_victim(void) {
     // if PTE_A == 0, evict the page (victim page)
     if (*pte & PTE_A) {
       *pte &= (~PTE_A); //clear
-      page_lru_head = curr->next; //to tail
-      curr = nxt;
-    } else if ((*pte & PTE_U) == 0) {
-      // not a user page, evict
-      kfree_from_lru_list(P2V(PTE_ADDR(*pde)));
-    }else {
+      if (curr == page_lru_head) {
+        page_lru_head = curr->next;
+      } else {
+        // delete myself
+        curr->prev->next = curr->next;
+        curr->next->prev = curr->prev;
+        // to tail
+        page_lru_head->prev->next = curr;
+        curr->prev = page_lru_head->prev;
+        page_lru_head->prev = curr;
+        curr->next = page_lru_head;
+      }
+    } else {
       // victim page
       release(&lru_lock);
       return curr;
     }
-    
+    curr = nxt;
   }
 }
 //
